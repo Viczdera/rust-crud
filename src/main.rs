@@ -1,0 +1,122 @@
+use postgres::Error as PostgresError;
+use postgres::{Client, NoTls};
+use std::env;
+use std::fmt::format;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+
+#[macro_use]
+extern crate serde_derive;
+
+//user struct
+
+#[derive(Serialize, Deserialize)]
+struct User {
+    id: Option<i32>,
+    name: String,
+    email: String,
+}
+
+//connect db
+const DB_URL: &str = !env("DATABASE_URL");
+const PORT: &str = "8080";
+
+// &str is a borrowed string slice (does not own the data, immutable).
+// String is an owned, growable, heap-allocated string (can be modified).
+
+//constants
+const OK_RES: &str = "HTTP/1.1 200 OK\r\nContent-Type: application/jsonr\n\r\n";
+const NOT_FOUND: &str = "HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\n\r\n";
+const INTERNAL_SERVER_ERROR: &str =
+    "HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\n\r\n";
+
+fn main() {
+    if let Err(e) = connect_db() {
+        print!("Error: {}", e);
+        return;
+    }
+
+    //start server
+
+    let listener = TcpListener::bind(format!("0.0.0.0:{}", PORT)).unwrap();
+    print!("Server started on port {}", PORT);
+
+    //handle client stream
+    for stream in listener.incoming(){
+        match stream{
+            Ok(stream)=>{
+                handle_client(stream);
+            }
+            Err(e)=>{
+                print!("Err:{}",e);
+            }
+        }
+    }
+}
+
+fn connect_db() -> Result<(), PostgresError> {
+    let mut client = Client::connect(DB_URL, NoTls)?;
+
+    //create table
+    client.execute(
+        "CREATE TABLE IF NOT EXIST users(
+            id SERIAL PRIMARY KEY,
+            name VARCHAR NOT NULL
+            email VARCHAR NOT NULL)",
+        &[],
+    )?;
+
+}
+
+fn get_id(request:&str)->&str{
+    request.split("/").nth(2).unwrap_or_default().split_whitespace().next().unwrap_or_default();
+}
+
+//get user from req body by id
+fn get_user_request_body(request:&str)->Resul<User,serde_json::Error>{
+    serde_json::from_str(request.split("\r\n\r\n").last().unwrap_or_default());
+}
+
+//handle client
+fn handle_client(mut stream:TcpStream){
+    let mut buffer=[0;1024];
+    let mut request = String::new();
+
+    match stream.read(&mut buffer) {
+        Ok(size)=>{
+            request.push_str(String::from_utf8_lossy(&buffer[..size]).as_ref());
+
+            let(status_line,content)=match &*request  {
+                r if r.starts_with("GET /users/") => handle_get_request(r),
+                r if r.starts_with("POST /users") => handle_post_request(r),
+                r if r.starts_with("PUT /users/") => handle_put_request(r),
+                r if r.starts_with("DELETE /users/") => handle_delete_request(r),
+                _ => (NOT_FOUND, r#"{"error":"Not found"}"#.to_string())
+            };
+
+            stream.write_all(format!("{}{}",status_line,content).as_bytes()).unwrap();
+        }
+        Err(err)=>{
+            print!("Error:{}",err)
+        }
+    }
+}
+
+//controllers
+
+fn handle_post_request(r:&str)->(String,String){
+    match(get_user_request_body(&r), Client::connect(DB_URL,NoTls)){
+        (Ok(user),Ok(mut client))=>{
+            client.execute("INSERT INTO users (name, email) VALUES ($1, $2)", &[&user.name,&user.email])
+            .unwrap();
+            
+            (OK_RES.to_string(),"User created".to_string())
+        }
+        _=>(INTERNAL_SERVER_ERROR.to_string(),"Error".to_string())
+    }
+}
+fn handle_get_request(r:&str){
+    match(get_id(r),Client::connect(DB, NoTls)){
+        match 
+    }
+}

@@ -1,6 +1,6 @@
 use postgres::Error as PostgresError;
 use postgres::{Client, NoTls};
-use std::env;
+use std::{clone, env};
 use std::fmt::format;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -68,13 +68,15 @@ fn connect_db() -> Result<(), PostgresError> {
 
 }
 
-fn get_id(request:&str)->&str{
-    request.split("/").nth(2).unwrap_or_default().split_whitespace().next().unwrap_or_default();
+fn get_id(request:&str) -> &str {
+      request.split("/").nth(2).unwrap_or_default().split_whitespace().next().unwrap_or_default()
+    //or
+    // return request.split("/").nth(2).unwrap_or_default().split_whitespace().next().unwrap_or_default();
 }
 
 //get user from req body by id
-fn get_user_request_body(request:&str)->Resul<User,serde_json::Error>{
-    serde_json::from_str(request.split("\r\n\r\n").last().unwrap_or_default());
+fn get_user_request_body(request:&str)->Result<User,serde_json::Error>{
+    serde_json::from_str(request.split("\r\n\r\n").last().unwrap_or_default())
 }
 
 //handle client
@@ -100,7 +102,7 @@ fn handle_client(mut stream:TcpStream){
             print!("Error:{}",err)
         }
     }
-}
+} 
 
 //controllers
 
@@ -115,8 +117,46 @@ fn handle_post_request(r:&str)->(String,String){
         _=>(INTERNAL_SERVER_ERROR.to_string(),"Error".to_string())
     }
 }
-fn handle_get_request(r:&str){
-    match(get_id(r),Client::connect(DB, NoTls)){
-        match 
+
+fn handle_get_request(r: &str) -> (String, String) {
+    match(get_id(&r).parse::<i32>(), Client::connect(DB_URL, NoTls)) {
+    (Ok( id),   Ok(mut client)) => {
+            match client.query_one("SELECT id, name, email FROM users WHERE id = $1", &[&id]) {
+                Ok(row) => {
+                    let user = User {
+                        id: Some(row.get(0)),
+                        name: row.get(1),
+                        email: row.get(2),
+                    };
+                    (OK_RES.to_string(), serde_json::to_string(&user).unwrap())
+                }
+                _ => (NOT_FOUND.to_string(), "User not found".to_string()),
+            }
+        }
+        _ => (INTERNAL_SERVER_ERROR.to_string(), "Unable to get user".to_string()),
     }
 }
+
+fn handle_get_all_request(r: &str) -> (String, String) {
+    match(Client::connect(DB_URL, NoTls)) {
+        Ok(mut client) => {
+            let mut users= Vec::new();
+            //   Vectors are re-sizable arrays. Like slices, their size is not known at compile time, but they can grow or shrink at any time. 
+            for row in client.query("SELECT * FROM users", &[]).unwrap(){
+                users.push(User{
+                    id:row.get(0),
+                    name:row.get(1),
+                    email:row.get(2)
+                });
+            }
+            (OK_RES.to_string(), serde_json::to_string(&users).unwrap())
+        } 
+         _ => (INTERNAL_SERVER_ERROR.to_string(), "Unable to get user".to_string()),
+    }
+
+}
+
+
+// fn handle_update_request(r:&str) -> (String, String) {
+//     match(get)
+// }

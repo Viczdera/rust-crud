@@ -65,6 +65,7 @@ fn connect_db() -> Result<(), PostgresError> {
             email VARCHAR NOT NULL)",
         &[],
     )?;
+    Ok(())
 
 }
 
@@ -91,9 +92,9 @@ fn handle_client(mut stream:TcpStream){
             let(status_line,content)=match &*request  {
                 r if r.starts_with("GET /users/") => handle_get_request(r),
                 r if r.starts_with("POST /users") => handle_post_request(r),
-                r if r.starts_with("PUT /users/") => handle_put_request(r),
+                r if r.starts_with("PUT /users/") => handle_update_request(r),
                 r if r.starts_with("DELETE /users/") => handle_delete_request(r),
-                _ => (NOT_FOUND, r#"{"error":"Not found"}"#.to_string())
+                _ => (NOT_FOUND.to_string(), r#"{"error":"Not found"}"#.to_string())
             };
 
             stream.write_all(format!("{}{}",status_line,content).as_bytes()).unwrap();
@@ -157,6 +158,33 @@ fn handle_get_all_request(r: &str) -> (String, String) {
 }
 
 
-// fn handle_update_request(r:&str) -> (String, String) {
-//     match(get)
-// }
+fn handle_update_request(r:&str) -> (String, String) {
+    match(
+        get_id(&r).parse::<i32>(),
+        get_user_request_body(&r),
+        Client::connect(DB_URL, NoTls)
+    ){
+        (Ok(id),Ok(user),Ok(mut client))=>{
+            client.execute("UPDATE users SET name = $1, email = $2 WHERE id = $3", &[&user.name,&user.email,&id]).unwrap();
+            (OK_RES.to_string(),"User updated".to_string())
+        }
+        _=>( INTERNAL_SERVER_ERROR.to_string(),"Error".to_string())
+    }
+}
+
+fn handle_delete_request(r:&str)->(String,String){
+    match(
+        get_id(&r).parse::<i32>(),
+        Client::connect(DB_URL,NoTls)
+    ){
+        (Ok(id),Ok(mut client))=>{
+            let rows_affected= client.execute("DELETE FROM users WHERE id = $1", &[&id]).unwrap();
+            if rows_affected == 0 {
+                 return  (NOT_FOUND.to_string(),"User not found".to_string());
+            }
+            (OK_RES.to_string(),"User deleted successfully".to_string())
+
+        }
+        _=>(INTERNAL_SERVER_ERROR.to_string(),"Error".to_string())
+    }
+}

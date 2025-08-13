@@ -1,12 +1,13 @@
 use postgres::Error as PostgresError;
 use postgres::{Client, NoTls};
-use std::{clone, env};
-use std::fmt::format;
+use std::env;
+// use std::fmt::format;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-
+use lazy_static::lazy_static;
 #[macro_use]
 extern crate serde_derive;
+
 
 //user struct
 
@@ -18,7 +19,11 @@ struct User {
 }
 
 //connect db
-const DB_URL: &str = !env("DATABASE_URL");
+
+lazy_static! {
+    static ref DB_URL: String = env::var("DB_URL")
+        .expect("DB_URL must be set in the environment");
+}
 const PORT: &str = "8080";
 
 // &str is a borrowed string slice (does not own the data, immutable).
@@ -55,7 +60,7 @@ fn main() {
 }
 
 fn connect_db() -> Result<(), PostgresError> {
-    let mut client = Client::connect(DB_URL, NoTls)?;
+    let mut client = Client::connect(&DB_URL, NoTls)?;
 
     //create table
     client.execute(
@@ -90,7 +95,8 @@ fn handle_client(mut stream:TcpStream){
             request.push_str(String::from_utf8_lossy(&buffer[..size]).as_ref());
 
             let(status_line,content)=match &*request  {
-                r if r.starts_with("GET /users/") => handle_get_request(r),
+                r if r.starts_with("GET /users") => handle_get_all_request(),
+                 r if r.starts_with("GET /user/") => handle_get_request(r),
                 r if r.starts_with("POST /users") => handle_post_request(r),
                 r if r.starts_with("PUT /users/") => handle_update_request(r),
                 r if r.starts_with("DELETE /users/") => handle_delete_request(r),
@@ -108,7 +114,7 @@ fn handle_client(mut stream:TcpStream){
 //controllers
 
 fn handle_post_request(r:&str)->(String,String){
-    match(get_user_request_body(&r), Client::connect(DB_URL,NoTls)){
+    match(get_user_request_body(&r), Client::connect(&DB_URL,NoTls)){
         (Ok(user),Ok(mut client))=>{
             client.execute("INSERT INTO users (name, email) VALUES ($1, $2)", &[&user.name,&user.email])
             .unwrap();
@@ -120,7 +126,7 @@ fn handle_post_request(r:&str)->(String,String){
 }
 
 fn handle_get_request(r: &str) -> (String, String) {
-    match(get_id(&r).parse::<i32>(), Client::connect(DB_URL, NoTls)) {
+    match(get_id(&r).parse::<i32>(), Client::connect(&DB_URL, NoTls)) {
     (Ok( id),   Ok(mut client)) => {
             match client.query_one("SELECT id, name, email FROM users WHERE id = $1", &[&id]) {
                 Ok(row) => {
@@ -138,8 +144,8 @@ fn handle_get_request(r: &str) -> (String, String) {
     }
 }
 
-fn handle_get_all_request(r: &str) -> (String, String) {
-    match(Client::connect(DB_URL, NoTls)) {
+fn handle_get_all_request() -> (String, String) {
+    match Client::connect(&DB_URL, NoTls) {
         Ok(mut client) => {
             let mut users= Vec::new();
             //   Vectors are re-sizable arrays. Like slices, their size is not known at compile time, but they can grow or shrink at any time. 
@@ -162,7 +168,7 @@ fn handle_update_request(r:&str) -> (String, String) {
     match(
         get_id(&r).parse::<i32>(),
         get_user_request_body(&r),
-        Client::connect(DB_URL, NoTls)
+        Client::connect(&DB_URL, NoTls)
     ){
         (Ok(id),Ok(user),Ok(mut client))=>{
             client.execute("UPDATE users SET name = $1, email = $2 WHERE id = $3", &[&user.name,&user.email,&id]).unwrap();
@@ -175,7 +181,7 @@ fn handle_update_request(r:&str) -> (String, String) {
 fn handle_delete_request(r:&str)->(String,String){
     match(
         get_id(&r).parse::<i32>(),
-        Client::connect(DB_URL,NoTls)
+        Client::connect(&DB_URL,NoTls)
     ){
         (Ok(id),Ok(mut client))=>{
             let rows_affected= client.execute("DELETE FROM users WHERE id = $1", &[&id]).unwrap();

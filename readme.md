@@ -1,97 +1,231 @@
-# Rust CRUD API
+# 🦀 Rust CRUD API
 
-A simple REST API built with Rust that performs CRUD operations using PostgreSQL database.
+A lightweight, high-performance REST API built with Rust that performs CRUD operations on a PostgreSQL database. Built this to demonstrate raw HTTP handling without external web frameworks, showcasing Rust's capabilities for building efficient backend services.
 
-## Features
+## ✨ Features
 
-- RESTful endpoints for Users
-- PostgreSQL database integration
-- JSON request/response handling
-- Basic error handling
+- **Pure Rust Implementation**: Built without external web frameworks, using only standard library and minimal dependencies
+- **RESTful API**: Complete CRUD operations for user management
+- **PostgreSQL Integration**: Robust database operations with connection handling
+- **JSON Support**: Serialization/deserialization with Serde
+- **Docker Ready**: Complete containerization with Docker Compose
+- **Error Handling**: Comprehensive error responses and status codes
+- **Auto Table Creation**: Database schema initialization on startup
 
-## Prerequisites
+## 🚀 Quick Start
 
+### Using Docker Compose (Recommended)
+
+1. **Clone the repository**:
+   ```bash
+   git clone <your-repository-url>
+   cd rust-crud
+   ```
+
+2. **Start the application**:
+   ```bash
+   docker-compose up --build
+   ```
+
+3. **Access the API**:
+   ```
+   http://localhost:8082
+   ```
+
+### Manual Setup
+
+#### Prerequisites
 - Rust (latest stable version)
-- PostgreSQL
-- cargo
+- PostgreSQL 12+
+- Cargo
 
-## Environment Variables
+#### Environment Setup
 
-Create a `.env` file in the root directory and add:
+1. **Set environment variable**:
+   ```bash
+   export DB_URL="postgres://username:password@localhost:5432/dbname"
+   ```
 
-```env
-DATABASE_URL=postgres://username:password@localhost/dbname
-PORT=8080
-```
+2. **Install dependencies and run**:
+   ```bash
+   cargo build --release
+   cargo run
+   ```
 
-## Database Schema
+## 🗄️ Database Schema
+
+The application automatically creates the following table on startup:
 
 ```sql
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     name VARCHAR NOT NULL,
     email VARCHAR NOT NULL
 );
 ```
 
-## API Endpoints
+## 📚 API Documentation
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/users` | Get all users |
-| GET | `/users/:id` | Get a single user |
-| POST | `/users` | Create a new user |
-| PUT | `/users/:id` | Update a user |
-| DELETE | `/users/:id` | Delete a user |
-
-## Running the Application
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd rust-crud
+### Base URL
+```
+http://localhost:8082
 ```
 
-2. Install dependencies:
+### Endpoints
+
+| Method | Endpoint | Description | Request Body |
+|--------|----------|-------------|--------------|
+| `GET` | `/users` | Retrieve all users | None |
+| `GET` | `/user/{id}` | Retrieve a specific user | None |
+| `POST` | `/users` | Create a new user | User JSON |
+| `PUT` | `/users/{id}` | Update an existing user | User JSON |
+| `DELETE` | `/users/{id}` | Delete a user | None |
+
+### Request/Response Examples
+
+#### Create User
+```bash
+curl -X POST http://localhost:8082/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "email": "john.doe@example.com"
+  }'
+```
+
+**Response**: `200 OK`
+```
+User created
+```
+
+#### Get All Users
+```bash
+curl http://localhost:8082/users
+```
+
+**Response**: `200 OK`
+```json
+[
+  {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john.doe@example.com"
+  }
+]
+```
+
+#### Get User by ID
+```bash
+curl http://localhost:8082/user/1
+```
+
+**Response**: `200 OK`
+```json
+{
+  "id": 1,
+  "name": "John Doe",
+  "email": "john.doe@example.com"
+}
+```
+
+#### Update User
+```bash
+curl -X PUT http://localhost:8082/users/1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Jane Doe",
+    "email": "jane.doe@example.com"
+  }'
+```
+
+**Response**: `200 OK`
+```
+User updated
+```
+
+#### Delete User
+```bash
+curl -X DELETE http://localhost:8082/users/1
+```
+
+**Response**: `200 OK`
+```
+User deleted successfully
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `DB_URL` | PostgreSQL connection string | None | Yes |
+
+### Docker Configuration
+
+The project includes:
+- **Dockerfile**: Multi-stage build for optimized production image
+- **docker-compose.yml**: Complete stack with PostgreSQL database
+- **Automatic networking**: App and database communication
+
+## 🏗️ Project Structure
+
+```
+rust-crud/
+├── src/
+│   └── main.rs          # Main application code
+├── Cargo.toml           # Dependencies and metadata
+├── Dockerfile           # Container build instructions
+├── docker-compose.yml   # Multi-service orchestration
+└── README.md           # Project documentation
+```
+
+## 🛠️ Technologies Used
+
+- **[Rust](https://www.rust-lang.org/)** - Systems programming language
+- **[postgres](https://crates.io/crates/postgres)** - PostgreSQL driver
+- **[serde](https://crates.io/crates/serde)** - Serialization framework
+- **[serde_json](https://crates.io/crates/serde_json)** - JSON support
+- **[lazy_static](https://crates.io/crates/lazy_static)** - Static variable initialization
+- **PostgreSQL** - Database
+- **Docker** - Containerization
+
+
+## 🚧 Development
+
+### Building
 ```bash
 cargo build
 ```
 
-3. Run the server:
+### Running in Development
 ```bash
 cargo run
 ```
 
-The server will start on `http://localhost:8080`
-
-## Request/Response Examples
-
-### Create User
+### Building for Production
 ```bash
-POST /users
-Content-Type: application/json
-
-{
-    "name": "John Doe",
-    "email": "john@example.com"
-}
+cargo build --release
 ```
 
-### Get User
+## 🐳 Docker Commands
+
+### Build Image
 ```bash
-GET /users/1
+docker build -t rust-crud .
 ```
 
-## Error Handling
+### Run with Docker Compose
+```bash
+docker-compose up -d
+```
 
-The API returns the following error codes:
+### View Logs
+```bash
+docker-compose logs -f rustapp
+```
 
-- `200 OK` - Success
-- `404 Not Found` - Resource not found
-- `500 Internal Server Error` - Server error
-
-## Dependencies
-
-- `postgres` - PostgreSQL driver
-- `serde` - Serialization/Deserialization
--
+### Stop Services
+```bash
+docker-compose down
+```

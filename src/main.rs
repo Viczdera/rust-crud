@@ -24,12 +24,13 @@ lazy_static! {
     static ref DB_URL: String = env::var("DB_URL")
         .expect("DB_URL must be set in the environment");
 }
-const PORT: &str = "8080";
+
 
 // &str is a borrowed string slice (does not own the data, immutable).
 // String is an owned, growable, heap-allocated string (can be modified).
 
 //constants
+const PORT:&str="8082";
 const OK_RES: &str = "HTTP/1.1 200 OK\r\nContent-Type: application/jsonr\n\r\n";
 const NOT_FOUND: &str = "HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\n\r\n";
 const INTERNAL_SERVER_ERROR: &str =
@@ -63,12 +64,11 @@ fn connect_db() -> Result<(), PostgresError> {
     let mut client = Client::connect(&DB_URL, NoTls)?;
 
     //create table
-    client.execute(
-        "CREATE TABLE IF NOT EXIST users(
+    client.batch_execute(
+        "CREATE TABLE IF NOT EXISTS users(
             id SERIAL PRIMARY KEY,
-            name VARCHAR NOT NULL
+            name VARCHAR NOT NULL,
             email VARCHAR NOT NULL)",
-        &[],
     )?;
     Ok(())
 
